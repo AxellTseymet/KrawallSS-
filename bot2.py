@@ -2,20 +2,20 @@ import logging
 import asyncio
 import os
 import random
-import aiohttp
 from aiogram import Bot, Dispatcher, F
+from aiogram.client.default import DefaultBotProperties
+from aiogram.enums import ChatMemberStatus, ParseMode
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import (
-    Message, 
-    InlineKeyboardMarkup, 
-    InlineKeyboardButton, 
-    CallbackQuery, 
-    BufferedInputFile
+    Message,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+    CallbackQuery,
+    BufferedInputFile,
 )
-from aiogram.enums import ChatMemberStatus
 
 # Токен берется из переменных окружения сервера (Render / окружение ПК)
 TOKEN = os.getenv("BOT_TOKEN")
@@ -23,7 +23,10 @@ TOKEN = os.getenv("BOT_TOKEN")
 if not TOKEN:
     raise ValueError("❌ Ошибка: Не найден токен бота! Установи переменную окружения BOT_TOKEN.")
 
-bot = Bot(token=TOKEN, parse_mode="HTML")
+bot = Bot(
+    token=TOKEN,
+    default=DefaultBotProperties(parse_mode=ParseMode.HTML),
+)
 dp = Dispatcher(storage=MemoryStorage())
 
 AUTHORIZED_USERS = {
@@ -120,7 +123,7 @@ async def get_raid_keyboard():
 
 async def build_users_keyboard(action_prefix: str):
     buttons = [[InlineKeyboardButton(text="◀️ Назад в Рейд Панель", callback_data="menu_raid")]]
-    
+
     if target_chat_id:
         try:
             admins = await bot.get_chat_administrators(target_chat_id)
@@ -128,13 +131,13 @@ async def build_users_keyboard(action_prefix: str):
                 if not m.user.is_bot:
                     name = m.user.first_name or f"ID: {m.user.id}"
                     buttons.append([InlineKeyboardButton(
-                        text=f"👤 {name}", 
+                        text=f"👤 {name}",
                         callback_data=f"{action_prefix}_{m.user.id}"
                     )])
         except Exception:
             for uid, name in AUTHORIZED_USERS.items():
                 buttons.append([InlineKeyboardButton(
-                    text=f"👤 {name}", 
+                    text=f"👤 {name}",
                     callback_data=f"{action_prefix}_{uid}"
                 )])
 
@@ -241,7 +244,7 @@ async def cb_menu_raid(callback: CallbackQuery):
 async def cb_check_ready_menu(callback: CallbackQuery):
     if callback.from_user.id not in AUTHORIZED_USERS:
         return
-    
+
     text = f"🎯 <b>Текущая цель (группа):</b> <code>{target_chat_id if target_chat_id else 'Не задана'}</code>\nСтатус: Готов к работе."
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="➕ Ввести / Изменить ID группы", callback_data="set_custom_target_id")],
@@ -265,14 +268,14 @@ async def process_custom_target_id(message: Message, state: FSMContext):
     global target_chat_id
     if message.from_user.id not in AUTHORIZED_USERS:
         return
-    
+
     try:
         new_id = int(message.text.strip())
         target_chat_id = new_id
         await message.answer(f"✅ Целевой чат успешно изменен на ID: <code>{target_chat_id}</code>", parse_mode="HTML", reply_markup=await get_main_keyboard())
     except ValueError:
         await message.answer("❌ Ошибка: ID должен состоять только из цифр. Попробуйте снова.")
-    
+
     await state.clear()
 
 # --- МЕНЮ ВЫБОРА УЧАСТНИКОВ ---
@@ -303,7 +306,7 @@ async def cb_act_promote(callback: CallbackQuery):
     user_id_to_promote = int(callback.data.split("_")[2])
     try:
         await bot.promote_chat_member(
-            target_chat_id, 
+            target_chat_id,
             user_id_to_promote,
             can_manage_chat=True,
             can_delete_messages=True,
@@ -325,7 +328,7 @@ async def cb_act_tag(callback: CallbackQuery, state: FSMContext):
     target_uid = int(callback.data.split("_")[2])
     await state.update_data(target_uid=target_uid)
     await state.set_state(AdminStates.waiting_for_tag_text)
-    
+
     await callback.message.edit_text("Введите желаемый ТЕГ (титул) для этого участника:")
     await callback.answer()
 
@@ -348,11 +351,12 @@ async def cb_toggle_anon(callback: CallbackQuery):
     if callback.from_user.id not in AUTHORIZED_USERS:
         return
     try:
-        member = await bot.get_chat_member(target_chat_id, (await bot.get_me()).id)
+        me = await bot.get_me()
+        member = await bot.get_chat_member(target_chat_id, me.id)
         current_anon = getattr(member, 'is_anonymous', False) if member.status == ChatMemberStatus.ADMINISTRATOR else False
         await bot.promote_chat_member(
             target_chat_id,
-            (await bot.get_me()).id,
+            me.id,
             is_anonymous=not current_anon
         )
         status_str = "ВКЛЮЧЕНА" if not current_anon else "ВЫКЛЮЧЕНА"
@@ -420,7 +424,7 @@ async def cb_clear_all_history(callback: CallbackQuery):
             await asyncio.sleep(0.02)
         except Exception:
             pass
-             
+
     back_kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="◀️ Назад в главное меню", callback_data="main_menu")]
     ])
@@ -473,12 +477,12 @@ async def process_custom_photo(message: Message, state: FSMContext):
         photo_file = message.photo[-1]
         file_bytes = await bot.download(photo_file.file_id)
         input_file = BufferedInputFile(file_bytes.read(), filename="avatar.jpg")
-        
+
         await bot.set_chat_photo(target_chat_id, input_file)
         await message.answer("✅ Новая аватарка успешно установлена на группу силами KrawallSS!")
     except Exception as e:
         await message.answer(f"❌ Не удалось изменить фото (проверьте права бота 'Изменение профиля группы'): {e}")
-    
+
     await state.clear()
 
 async def main():
