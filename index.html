@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>KravalSS!</title>
+    <link rel="icon" type="image/x-icon" href="skull.ico">
+    <style>
+        @font-face {
+            font-family: 'Warface';
+            src: url('warface.ttf') format('truetype');
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        * { 
+            box-sizing: border-box; 
+            font-family: 'Warface', 'Arial Black', sans-serif !important;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background-color: #0b0b0b;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            min-height: 100vh;
+            margin: 0;
+            padding: calc(20px + env(safe-area-inset-top)) 15px 40px;
+            text-align: center;
+            overflow-x: hidden;
+            position: relative;
+            user-select: none;
+        }
+
+        /* Scanline наложение как в Hotline Miami */
+        body::after {
+            content: " ";
+            display: block;
+            position: fixed;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.3) 50%), 
+                        linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+            z-index: 99;
+            background-size: 100% 4px, 6px 100%;
+            pointer-events: none;
+        }
+
+        #ribbonCanvas {
+            position: fixed;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: auto;
+            z-index: 1;
+            cursor: grab;
+            touch-action: none;
+        }
+
+        #ribbonCanvas:active { cursor: grabbing; }
+
+        h1, .subtitle, .profile-card, .games-grid, .contact-block, .drag-tip {
+            position: relative;
+            z-index: 5;
+        }
+
+        h1, .subtitle {
+            pointer-events: none;
+        }
+
+        .profile-card, .games-grid, .contact-block {
+            pointer-events: auto;
+        }
+
+        h1 {
+            font-size: 2.8rem;
+            margin-bottom: 5px;
+            color: #ffcc00;
+            text-shadow: 3px 3px 0 #000, 0 0 20px rgba(255, 204, 0, 0.4);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .subtitle {
+            font-size: 1.1rem;
+            background-color: #ffcc00;
+            color: #000;
+            padding: 5px 15px;
+            transform: rotate(-1deg);
+            box-shadow: 4px 4px 0 #000;
+            margin-bottom: 25px;
+            text-transform: uppercase;
+            display: inline-block;
+        }
+
+        .profile-card {
+            background: #111;
+            border: 3px solid #ffcc00;
+            box-shadow: 6px 6px 0 #000;
+            padding: 20px;
+            max-width: 520px;
+            width: 100%;
+            margin-bottom: 20px;
+            text-align: left;
+            position: relative;
+        }
+
+        .profile-title {
+            font-size: 1.2rem;
+            color: #ffcc00;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 0 #000;
+            position: relative;
+            z-index: 1;
+        }
+
+        .profile-desc {
+            font-size: 0.92rem;
+            color: #ccc;
+            line-height: 1.5;
+            position: relative;
+            z-index: 1;
+        }
+
+        .games-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            max-width: 520px;
+            width: 100%;
+            margin-bottom: 25px;
+        }
+
+        .game-card {
+            background: #111;
+            border: 2px solid #ffcc00;
+            box-shadow: 4px 4px 0 #000;
+            padding: 12px;
+            text-align: left;
+            position: relative;
+        }
+
+        .game-card h3 {
+            margin: 0 0 6px 0;
+            font-size: 0.95rem;
+            color: #ffcc00;
+            text-transform: uppercase;
+        }
+
+        .game-card p {
+            margin: 0;
+            font-size: 0.8rem;
+            color: #aaa;
+            line-height: 1.3;
+        }
+
+        .contact-block {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 30px;
+            justify-content: center;
+            flex-wrap: wrap;
+            max-width: 520px;
+            width: 100%;
+        }
+
+        .contact-handle {
+            color: #ffcc00;
+            text-decoration: none;
+            text-transform: uppercase;
+            font-size: 0.9rem;
+            background: #111;
+            padding: 14px 20px;
+            border: 2px solid #ffcc00;
+            box-shadow: 4px 4px 0 #000;
+            transition: transform 0.1s;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            flex: 1 1 200px;
+        }
+
+        .contact-handle:active {
+            transform: translate(2px, 2px);
+            box-shadow: 2px 2px 0 #000;
+        }
+
+        .drag-tip {
+            position: fixed;
+            left: 20px;
+            top: 20px;
+            color: #ffcc00;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            pointer-events: none;
+            text-shadow: 1px 1px 0 #000;
+        }
+
+        @media (max-width: 600px) {
+            body {
+                padding-top: calc(15px + env(safe-area-inset-top));
+            }
+            .games-grid { grid-template-columns: 1fr; }
+            .drag-tip { display: none; }
+            h1 { font-size: 2.1rem; }
+            .subtitle { font-size: 0.95rem; }
+            .contact-handle {
+                width: 100%;
+                font-size: 0.85rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="ribbonCanvas"></canvas>
+    <div class="drag-tip">ленты двигаются если че →</div>
+
+    <h1>KRAWALSS!</h1>
+    <div class="subtitle">мстители за своих</div>
+
+    <div class="profile-card">
+        <div class="profile-title">// КТО МЫ ТАКИЕ</div>
+        <div class="profile-desc">
+            собрались толпой и мстим за своих. если кто-то из наших попал под замес или где-то беспредел — влетаем и устраиваем жесткий рейд. идею и суету взяли с хотлайн маями, действуем быстро, жестко и без лишних слов.
+        </div>
+    </div>
+
+    <div class="games-grid">
+        <div class="game-card">
+            <h3>рейды в тг</h3>
+            <p>находим обидчиков, влетаем толпой и сносим группы. никто даже не успевает понять, откуда прилетело.</p>
+        </div>
+        <div class="game-card">
+            <h3>стиль hotline</h3>
+            <p>полная анонимность, свои темы и чистый хаос для тех, кто перешел дорогу нашей теме.</p>
+        </div>
+    </div>
+
+    <div class="contact-block">
+        <a class="contact-handle" href="https://t.me/+rk8a_u236FFhNDBi" target="_blank" rel="noopener noreferrer">
+            ⚡ TELEGRAM
+        </a>
+        <a class="contact-handle" href="https://t.me/ReidOverlord_bot" target="_blank" rel="noopener noreferrer">
+            🤖 НАШ РЕЙД БОТ
+        </a>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('ribbonCanvas');
+        const ctx = canvas.getContext('2d');
+        let width, height;
+
+        function resize() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+        }
+        resize();
+
+        const patternCanvas = document.createElement('canvas');
+        const stripeWidth = 24;
+        patternCanvas.width = stripeWidth * 2;
+        patternCanvas.height = stripeWidth * 2;
+        const pCtx = patternCanvas.getContext('2d');
+
+        pCtx.fillStyle = '#ffcc00';
+        pCtx.fillRect(0, 0, stripeWidth, stripeWidth * 2);
+        pCtx.fillStyle = '#000000';
+        pCtx.fillRect(stripeWidth, 0, stripeWidth, stripeWidth * 2);
+
+        const stripePattern = ctx.createPattern(patternCanvas, 'repeat');
+        const mouse = { x: 0, y: 0, down: false, target: null, segment: 0 };
+
+        class Ribbon {
+            constructor({ percentX, widthValue, totalLength, seed }) {
+                this.percentX = percentX;
+                this.widthValue = widthValue;
+                this.totalLength = totalLength;
+                this.seed = seed;
+                this.segCount = 12;
+                this.segLength = totalLength / this.segCount;
+                this.points = [];
+                this.generatePoints();
+            }
+
+            generatePoints() {
+                this.points = [];
+                for (let i = 0; i < this.segCount; i++) {
+                    const x = width * (this.percentX / 100) + Math.sin((i + this.seed) * 0.9) * (8 + this.widthValue * 0.15);
+                    const y = -80 + i * this.segLength + Math.cos(this.seed + i * 0.7) * 10;
+                    this.points.push({ x, y, oldX: x, oldY: y });
+                }
+            }
+
+            update(time) {
+                this.points[0].x = width * (this.percentX / 100) + Math.sin(time * 0.001 + this.seed) * 5;
+                this.points[0].y = -80;
+
+                for (let i = 1; i < this.points.length; i++) {
+                    const p = this.points[i];
+                    const vx = (p.x - p.oldX) * 0.94;
+                    const vy = (p.y - p.oldY) * 0.94;
+                    p.oldX = p.x;
+                    p.oldY = p.y;
+                    p.x += vx;
+                    p.y += vy + 0.55;
+                }
+
+                if (mouse.down && mouse.target === this) {
+                    const p = this.points[mouse.segment];
+                    p.x += (mouse.x - p.x) * 0.22;
+                    p.y += (mouse.y - p.y) * 0.22;
+                }
+
+                for (let iter = 0; iter < 3; iter++) {
+                    for (let i = 0; i < this.points.length - 1; i++) {
+                        const p1 = this.points[i];
+                        const p2 = this.points[i + 1];
+                        const dx = p2.x - p1.x;
+                        const dy = p2.y - p1.y;
+                        const dist = Math.hypot(dx, dy) || 1;
+                        const diff = (this.segLength - dist) / dist * 0.5;
+                        const offsetX = dx * diff;
+                        const offsetY = dy * diff;
+
+                        if (i > 0) {
+                            p1.x -= offsetX;
+                            p1.y -= offsetY;
+                        }
+                        p2.x += offsetX;
+                        p2.y += offsetY;
+                    }
+                }
+            }
+
+            draw() {
+                const len = this.points.length;
+                const left = new Array(len);
+                const right = new Array(len);
+                const half = this.widthValue / 2;
+
+                for (let i = 0; i < len; i++) {
+                    const p = this.points[i];
+                    const prev = this.points[i > 0 ? i - 1 : 0];
+                    const next = this.points[i < len - 1 ? i + 1 : i];
+                    const dx = next.x - prev.x;
+                    const dy = next.y - prev.y;
+                    const dLen = Math.hypot(dx, dy) || 1;
+                    const nx = (-dy / dLen) * half;
+                    const ny = (dx / dLen) * half;
+
+                    left[i] = { x: p.x + nx, y: p.y + ny };
+                    right[len - 1 - i] = { x: p.x - nx, y: p.y - ny };
+                }
+
+                const pA = left[len - 1];
+                const pB = right[0];
+                const baseLen = Math.hypot(pB.x - pA.x, pB.y - pA.y) || 1;
+                const ux = (pB.x - pA.x) / baseLen;
+                const uy = (pB.y - pA.y) / baseLen;
+
+                ctx.beginPath();
+                ctx.moveTo(left[0].x, left[0].y);
+
+                for (let i = 1; i < len; i++) {
+                    ctx.lineTo(left[i].x, left[i].y);
+                }
+
+                for (let i = 1; i <= 8; i++) {
+                    const t = i / 9;
+                    const x = pA.x + (pB.x - pA.x) * t;
+                    const y = pA.y + (pB.y - pA.y) * t;
+                    const wave = Math.sin((i + this.seed) * 1.8) * (18 * (1 - t));
+                    ctx.lineTo(x + uy * wave, y - ux * wave);
+                }
+
+                for (let i = 0; i < len; i++) {
+                    ctx.lineTo(right[i].x, right[i].y);
+                }
+
+                ctx.closePath();
+
+                const start = this.points[0];
+                const end = this.points[len - 1];
+                const angle = Math.atan2(end.y - start.y, end.x - start.x);
+
+                ctx.save();
+                ctx.clip();
+                ctx.translate((start.x + end.x) / 2, (start.y + end.y) / 2);
+                ctx.rotate(angle + Math.PI / 4);
+
+                ctx.fillStyle = stripePattern;
+                ctx.fillRect(-1000, -1000, 2000, 2000);
+                ctx.restore();
+            }
+        }
+
+        let ribbons = [];
+        function initRibbons() {
+            const mobile = window.innerWidth < 768;
+            // Адаптированные позиции и размеры лент для телефонов
+            const config = mobile ? [
+                { percentX: 15, widthValue: 34, totalLength: 260, seed: 0.8 },
+                { percentX: 85, widthValue: 36, totalLength: 280, seed: 5.2 }
+            ] : [
+                { percentX: 8, widthValue: 44, totalLength: 240, seed: 0.8 },
+                { percentX: 28, widthValue: 70, totalLength: 330, seed: 1.7 },
+                { percentX: 72, widthValue: 82, totalLength: 390, seed: 3.9 },
+                { percentX: 92, widthValue: 48, totalLength: 280, seed: 5.2 }
+            ];
+            ribbons = config.map(item => new Ribbon(item));
+        }
+
+        initRibbons();
+
+        function handleStart(clientX, clientY) {
+            const rect = canvas.getBoundingClientRect();
+            mouse.x = clientX - rect.left;
+            mouse.y = clientY - rect.top;
+            mouse.down = true;
+
+            const isMobile = window.innerWidth < 768;
+            const grabRadius = isMobile ? 85 : 60; // Увеличенный радиус касания на смартфонах
+
+            let minDist = Infinity;
+            ribbons.forEach((ribbon) => {
+                ribbon.points.forEach((point, index) => {
+                    const dist = Math.hypot(point.x - mouse.x, point.y - mouse.y);
+                    if (dist < minDist && dist < grabRadius) {
+                        minDist = dist;
+                        mouse.target = ribbon;
+                        mouse.segment = index;
+                    }
+                });
+            });
+        }
+
+        function handleMove(clientX, clientY) {
+            const rect = canvas.getBoundingClientRect();
+            mouse.x = clientX - rect.left;
+            mouse.y = clientY - rect.top;
+        }
+
+        canvas.addEventListener('mousedown', e => handleStart(e.clientX, e.clientY));
+        canvas.addEventListener('touchstart', e => {
+            if (e.touches.length) handleStart(e.touches[0].clientX, e.touches[0].clientY);
+        }, { passive: true });
+
+        window.addEventListener('mousemove', e => handleMove(e.clientX, e.clientY));
+        window.addEventListener('touchmove', e => {
+            if (e.touches.length) handleMove(e.touches[0].clientX, e.touches[0].clientY);
+        }, { passive: true });
+
+        window.addEventListener('mouseup', () => { mouse.down = false; mouse.target = null; });
+        window.addEventListener('touchend', () => { mouse.down = false; mouse.target = null; });
+
+        window.addEventListener('resize', () => {
+            resize();
+            initRibbons();
+        });
+
+        function drawLoop(time) {
+            ctx.clearRect(0, 0, width, height);
+            for (let i = 0; i < ribbons.length; i++) {
+                ribbons[i].update(time);
+                ribbons[i].draw();
+            }
+            requestAnimationFrame(drawLoop);
+        }
+        requestAnimationFrame(drawLoop);
+    </script>
+</body>
+</html>
