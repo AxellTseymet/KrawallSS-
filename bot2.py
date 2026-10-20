@@ -23,7 +23,7 @@ TOKEN = os.getenv("BOT_TOKEN")
 if not TOKEN:
     raise ValueError("❌ Ошибка: Не найден токен бота! Установи переменную окружения BOT_TOKEN.")
 
-bot = Bot(token=TOKEN)
+bot = Bot(token=TOKEN, parse_mode="HTML")
 dp = Dispatcher(storage=MemoryStorage())
 
 AUTHORIZED_USERS = {
@@ -66,7 +66,8 @@ async def get_bot_permissions():
         return perms
 
     try:
-        member = await bot.get_chat_member(target_chat_id, bot.id)
+        me = await bot.get_me()
+        member = await bot.get_chat_member(target_chat_id, me.id)
         if member.status == ChatMemberStatus.ADMINISTRATOR:
             perms["change_info"] = getattr(member, 'can_change_info', False)
             perms["delete_messages"] = getattr(member, 'can_delete_messages', False)
@@ -198,27 +199,27 @@ async def cb_view_tasks(callback: CallbackQuery):
             "<b>ЛИЧНОЕ ЗАДАНИЕ: Тони (Командир)</b>\n"
             "<b>Время выполнения: 05:30</b>\n\n"
             "1. <b>Подготовка:</b> До 05:30 убедись, что скрипт бота запущен на ПК и в консоли нет ошибок.\n"
-            "2. <b>Активация:</b> В 05:30 зайди в ЛС к боту и отправь команду /start. Убедись, что бот ответил «Привет, ты Тони.» и выдал пульт с кнопками управления.\n"
-            "3. <b>Контроль цели:</b> Когда бота добавят в целевую группу, проверь приход уведомления о захвате цели в ЛС. Нажми кнопку «Проверить готовность».\n"
-            "4. <b>Старт:</b> Нажми кнопку управления рейдом — бот мгновенно отправит системный сигнал в группу и выдаст индивидуальные директивы Денису и Брендону.\n"
+            "2. <b>Активация:</b> В 05:30 зайди в ЛС к боту и отправь команду /start. Убедись, что бот ответил.\n"
+            "3. <b>Контроль цели:</b> Дождись подтверждения целевого чата и проверь, что бот видит группу.\n"
+            "4. <b>Старт:</b> Нажми кнопку управления рейдом — бот мгновенно отправит системный сигнал в группу и выполнит действия.\n"
             "5. <b>Финал:</b> После выполнения задач нажмите «Завершить операцию» для подачи сигнала на отход."
         )
     elif role_name == "Брендон":
         text = (
             "<b>ЛИЧНОЕ ЗАДАНИЕ: Брендон (Администратор прав)</b>\n"
             "<b>Время выполнения: 05:30</b>\n\n"
-            "1. <b>Активация:</b> В 05:30 зайди в ЛС к боту и отправь команду /start. Дождись подтверждения роли («Привет, ты Брендон.»).\n"
+            "1. <b>Активация:</b> В 05:30 зайди в ЛС к боту и отправь команду /start.\n"
             "2. <b>Ожидание:</b> Дождись автоматической директивы от бота в ЛС после старта операции.\n"
-            "3. <b>Выполнение:</b> Сразу по сигналу зайди в целевую группу и будь готов оперативно выдать полные права администратора Денису, как только он войдёт в чат.\n"
+            "3. <b>Выполнение:</b> Сразу по сигналу зайди в целевую группу и приготовь права для управления.\n"
             "4. <b>Завершение:</b> По сигналу «Операция окончена» от бота покинь зону."
         )
     elif role_name == "Денис":
         text = (
             "<b>ЛИЧНОЕ ЗАДАНИЕ: Денис (Оперативник зачистки)</b>\n"
             "<b>Время выполнения: 05:30</b>\n\n"
-            "1. <b>Активация:</b> В 05:30 зайди в ЛС к боту и отправь команду /start. Дождись подтверждения роли («Привет, ты Денис.»).\n"
+            "1. <b>Активация:</b> В 05:30 зайди в ЛС к боту и отправь команду /start.\n"
             "2. <b>Ожидание:</b> Находись наготове и жди от бота директиву в ЛС.\n"
-            "3. <b>Выполнение:</b> Как только прилетит сообщение с директивой, незамедлительно заходи в целевую группу, принимай права администратора от Брендона и начинай зачистку.\n"
+            "3. <b>Выполнение:</b> Как только прилетит сообщение с директивой, незамедлительно заходи в целевую группу.\n"
             "4. <b>Завершение:</b> По сигналу «Операция окончена» от бота покинь зону."
         )
     else:
@@ -316,7 +317,7 @@ async def cb_act_promote(callback: CallbackQuery):
 @dp.callback_query(F.data == "select_user_tag")
 async def cb_select_user_tag(callback: CallbackQuery):
     kb = await build_users_keyboard("act_tag")
-    await callback.message.edit_text("🏷 Выберите участника для СМЕНЫ ТЕГА:\n*(Внимание: Telegram не разрешает менять тег владельцу группы и пользователям, не назначенным через бота)*", reply_markup=kb)
+    await callback.message.edit_text("🏷 Выберите участника для СМЕНЫ ТЕГА:\n*(Внимание: Telegram не разрешает менять тег владельцу/админам без прав).*", reply_markup=kb)
     await callback.answer()
 
 @dp.callback_query(F.data.startswith("act_tag_"))
@@ -338,7 +339,7 @@ async def process_tag_text(message: Message, state: FSMContext):
         await bot.set_chat_administrator_custom_title(target_chat_id, target_uid, custom_title)
         await message.answer(f"✅ Кастомный тег '{custom_title}' успешно установлен!")
     except Exception as e:
-        await message.answer(f"❌ Ошибка установки тега: {e}\n(Напоминание: владельцу группы тег поставить нельзя, либо пользователь должен быть админом бота).")
+        await message.answer(f"❌ Ошибка установки тега: {e}\n(Напоминание: владельцу группы тег поставить нельзя, либо права не позволяют.)")
 
     await state.clear()
 
@@ -347,11 +348,11 @@ async def cb_toggle_anon(callback: CallbackQuery):
     if callback.from_user.id not in AUTHORIZED_USERS:
         return
     try:
-        member = await bot.get_chat_member(target_chat_id, bot.id)
+        member = await bot.get_chat_member(target_chat_id, (await bot.get_me()).id)
         current_anon = getattr(member, 'is_anonymous', False) if member.status == ChatMemberStatus.ADMINISTRATOR else False
         await bot.promote_chat_member(
             target_chat_id,
-            bot.id,
+            (await bot.get_me()).id,
             is_anonymous=not current_anon
         )
         status_str = "ВКЛЮЧЕНА" if not current_anon else "ВЫКЛЮЧЕНА"
@@ -419,7 +420,7 @@ async def cb_clear_all_history(callback: CallbackQuery):
             await asyncio.sleep(0.02)
         except Exception:
             pass
-            
+             
     back_kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="◀️ Назад в главное меню", callback_data="main_menu")]
     ])
@@ -454,7 +455,9 @@ async def cb_photo_custom(callback: CallbackQuery, state: FSMContext):
     if callback.from_user.id not in AUTHORIZED_USERS:
         return
     await state.set_state(AdminStates.waiting_for_custom_photo)
-    await callback.message.edit_text("📤 Пришлите картинку (фотографию) сюда, в личные сообщения боту, и KrawallSS мгновенно установит её на аватарку группы!")
+    await callback.message.edit_text("📤 Пришлите картинку (фотографию) сюда, в личные сообщения боту, и KrawallSS мгновенно установит её как аватарку группы.", reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="◀️ Отмена", callback_data="menu_raid")]
+    ]))
     await callback.answer()
 
 @dp.message(AdminStates.waiting_for_custom_photo, F.photo)
@@ -479,15 +482,17 @@ async def process_custom_photo(message: Message, state: FSMContext):
     await state.clear()
 
 async def main():
-    while True:
-        try:
-            await bot.delete_webhook(drop_pending_updates=True)
-            print("🤖 Бот успешно запущен и ждет сообщения...")
-            await dp.start_polling(bot)
-        except Exception as e:
-            print(f"⚠️ Ошибка соединения: {e}. Переподключение через 5 секунд...")
-            await asyncio.sleep(5)
+    try:
+        await bot.delete_webhook(drop_pending_updates=True)
+        me = await bot.get_me()
+        logging.info("🤖 Бот запущен: %s (@%s)", me.full_name or me.first_name, me.username)
+        await dp.start_polling(bot)
+    except asyncio.CancelledError:
+        logging.info("⚠️ Остановка бота по сигналу завершения...")
+    except Exception as e:
+        logging.exception("⚠️ Ошибка запуска polling: %s", e)
+        raise
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     asyncio.run(main())
